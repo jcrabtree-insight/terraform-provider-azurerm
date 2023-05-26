@@ -13,6 +13,8 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
 )
 
+// NOTE: This file is still included because the KeyVaultManagedHardwareSecurityModuleResource type is used by other tests.
+
 type KeyVaultManagedHardwareSecurityModuleResource struct{}
 
 func TestAccKeyVaultManagedHardwareSecurityModule(t *testing.T) {

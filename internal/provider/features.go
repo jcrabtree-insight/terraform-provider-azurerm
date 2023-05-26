@@ -105,13 +105,6 @@ func schemaFeatures(supportLegacyTestSuite bool) *pluginsdk.Schema {
 						Default:     true,
 					},
 
-					"purge_soft_deleted_hardware_security_modules_on_destroy": {
-						Description: "When enabled soft-deleted `azurerm_key_vault_managed_hardware_security_module` resources will be permanently deleted (e.g purged), when destroyed",
-						Type:        pluginsdk.TypeBool,
-						Optional:    true,
-						Default:     true,
-					},
-
 					"recover_soft_deleted_key_vaults": {
 						Description: "When enabled soft-deleted `azurerm_key_vault` resources will be restored, instead of creating new ones",
 						Type:        pluginsdk.TypeBool,
