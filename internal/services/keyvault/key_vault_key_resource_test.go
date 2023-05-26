@@ -18,6 +18,8 @@ import (
 	"github.com/tombuildsstuff/kermit/sdk/keyvault/7.4/keyvault"
 )
 
+// NOTE: This file is still included because the KeyVaultKeyResource type is used by other tests.
+
 type KeyVaultKeyResource struct{}
 
 func TestAccKeyVaultKey_basicEC(t *testing.T) {
