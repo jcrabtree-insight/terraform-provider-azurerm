@@ -17,6 +17,7 @@ import (
 	keyVaultValidate "github.com/hashicorp/terraform-provider-azurerm/internal/services/keyvault/validate"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tags"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/suppress"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
@@ -59,14 +60,18 @@ func resourceKeyVaultSecret() *pluginsdk.Resource {
 			},
 
 			"content_type": {
-				Type:     pluginsdk.TypeString,
-				Optional: true,
+				Type:                  pluginsdk.TypeString,
+				Optional:              true,
+				DiffSuppressFunc:      suppress.Always,
+				DiffSuppressOnRefresh: true,
 			},
 
 			"not_before_date": {
-				Type:         pluginsdk.TypeString,
-				Optional:     true,
-				ValidateFunc: validation.IsRFC3339Time,
+				Type:                  pluginsdk.TypeString,
+				Optional:              true,
+				DiffSuppressFunc:      suppress.Always,
+				DiffSuppressOnRefresh: true,
+				ValidateFunc:          validation.IsRFC3339Time,
 			},
 
 			"expiration_date": {
