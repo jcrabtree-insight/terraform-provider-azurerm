@@ -45,7 +45,6 @@ func (r Registration) SupportedDataSources() map[string]*pluginsdk.Resource {
 func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 	return map[string]*pluginsdk.Resource{
 		"azurerm_key_vault_access_policy":                                resourceKeyVaultAccessPolicy(),
-		"azurerm_key_vault_key":                                          resourceKeyVaultKey(),
 		"azurerm_key_vault_managed_hardware_security_module":             resourceKeyVaultManagedHardwareSecurityModule(),
 		"azurerm_key_vault_secret":                                       resourceKeyVaultSecret(),
 		"azurerm_key_vault":                                              resourceKeyVault(),

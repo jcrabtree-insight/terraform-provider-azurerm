@@ -4,7 +4,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"math/big"
 	"time"
@@ -19,6 +21,7 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
 	"github.com/tombuildsstuff/kermit/sdk/keyvault/7.4/keyvault"
+	"golang.org/x/crypto/ssh"
 )
 
 func dataSourceKeyVaultKey() *pluginsdk.Resource {
@@ -235,4 +238,29 @@ func flattenKeyVaultKeyDataSourceOptions(input *[]string) []interface{} {
 	}
 
 	return results
+}
+
+// Credit to Hashicorp modified from https://github.com/hashicorp/terraform-provider-tls/blob/v3.1.0/internal/provider/util.go#L79-L105
+func readPublicKey(d *pluginsdk.ResourceData, pubKey interface{}) error {
+	pubKeyBytes, err := x509.MarshalPKIXPublicKey(pubKey)
+	if err != nil {
+		return fmt.Errorf("failed to marshal public key error: %s", err)
+	}
+	pubKeyPemBlock := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubKeyBytes,
+	}
+
+	d.Set("public_key_pem", string(pem.EncodeToMemory(pubKeyPemBlock)))
+
+	sshPubKey, err := ssh.NewPublicKey(pubKey)
+	if err == nil {
+		// Not all EC types can be SSH keys, so we'll produce this only
+		// if an appropriate type was selected.
+		sshPubKeyBytes := ssh.MarshalAuthorizedKey(sshPubKey)
+		d.Set("public_key_openssh", string(sshPubKeyBytes))
+	} else {
+		d.Set("public_key_openssh", "")
+	}
+	return nil
 }
