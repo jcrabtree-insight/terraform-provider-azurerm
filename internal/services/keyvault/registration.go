@@ -7,7 +7,6 @@ import (
 
 type Registration struct{}
 
-var _ sdk.TypedServiceRegistrationWithAGitHubLabel = Registration{}
 var _ sdk.UntypedServiceRegistrationWithAGitHubLabel = Registration{}
 
 func (r Registration) AssociatedGitHubLabel() string {
@@ -46,8 +45,6 @@ func (r Registration) SupportedDataSources() map[string]*pluginsdk.Resource {
 func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 	return map[string]*pluginsdk.Resource{
 		"azurerm_key_vault_access_policy":                                resourceKeyVaultAccessPolicy(),
-		"azurerm_key_vault_certificate":                                  resourceKeyVaultCertificate(),
-		"azurerm_key_vault_certificate_issuer":                           resourceKeyVaultCertificateIssuer(),
 		"azurerm_key_vault_key":                                          resourceKeyVaultKey(),
 		"azurerm_key_vault_managed_hardware_security_module":             resourceKeyVaultManagedHardwareSecurityModule(),
 		"azurerm_key_vault_secret":                                       resourceKeyVaultSecret(),
@@ -60,11 +57,5 @@ func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 func (r Registration) DataSources() []sdk.DataSource {
 	return []sdk.DataSource{
 		EncryptedValueDataSource{},
-	}
-}
-
-func (r Registration) Resources() []sdk.Resource {
-	return []sdk.Resource{
-		KeyVaultCertificateContactsResource{},
 	}
 }

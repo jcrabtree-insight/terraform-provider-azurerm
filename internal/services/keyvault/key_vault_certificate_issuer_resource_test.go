@@ -14,6 +14,8 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
 )
 
+// NOTE: This file is still included because the KeyVaultCertificateIssuerResource type is used by other tests.
+
 type KeyVaultCertificateIssuerResource struct{}
 
 func TestAccKeyVaultCertificateIssuer_basic(t *testing.T) {

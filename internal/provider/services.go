@@ -151,7 +151,6 @@ func SupportedTypedServices() []sdk.TypedServiceRegistration {
 		hybridcompute.Registration{},
 		iothub.Registration{},
 		iotcentral.Registration{},
-		keyvault.Registration{},
 		labservice.Registration{},
 		loadbalancer.Registration{},
 		loganalytics.Registration{},

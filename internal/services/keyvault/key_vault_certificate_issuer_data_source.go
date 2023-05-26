@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
+	"github.com/tombuildsstuff/kermit/sdk/keyvault/7.4/keyvault"
 )
 
 func dataSourceKeyVaultCertificateIssuer() *pluginsdk.Resource {
@@ -114,4 +115,42 @@ func dataSourceKeyVaultCertificateIssuerRead(d *pluginsdk.ResourceData, meta int
 	}
 
 	return nil
+}
+
+func flattenKeyVaultCertificateIssuerAdmins(input *[]keyvault.AdministratorDetails) []interface{} {
+	results := make([]interface{}, 0)
+	if input == nil {
+		return results
+	}
+
+	for _, admin := range *input {
+		emailAddress := ""
+		if admin.EmailAddress != nil {
+			emailAddress = *admin.EmailAddress
+		}
+
+		firstName := ""
+		if admin.FirstName != nil {
+			firstName = *admin.FirstName
+		}
+
+		lastName := ""
+		if admin.LastName != nil {
+			lastName = *admin.LastName
+		}
+
+		phone := ""
+		if admin.Phone != nil {
+			phone = *admin.Phone
+		}
+
+		results = append(results, map[string]interface{}{
+			"email_address": emailAddress,
+			"first_name":    firstName,
+			"last_name":     lastName,
+			"phone":         phone,
+		})
+	}
+
+	return results
 }
