@@ -28,7 +28,6 @@ import (
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/validation"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
 	"github.com/hashicorp/terraform-provider-azurerm/utils"
-	dataplane "github.com/tombuildsstuff/kermit/sdk/keyvault/7.4/keyvault"
 )
 
 var keyVaultResourceName = "azurerm_key_vault"
@@ -83,37 +82,6 @@ func resourceKeyVault() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeString,
 				Required:     true,
 				ValidateFunc: validation.IsUUID,
-			},
-
-			"access_policy": {
-				Type:       pluginsdk.TypeList,
-				ConfigMode: pluginsdk.SchemaConfigModeAttr,
-				Optional:   true,
-				Computed:   true,
-				MaxItems:   1024,
-				Elem: &pluginsdk.Resource{
-					Schema: map[string]*pluginsdk.Schema{
-						"tenant_id": {
-							Type:         pluginsdk.TypeString,
-							Required:     true,
-							ValidateFunc: validation.IsUUID,
-						},
-						"object_id": {
-							Type:         pluginsdk.TypeString,
-							Required:     true,
-							ValidateFunc: validation.IsUUID,
-						},
-						"application_id": {
-							Type:         pluginsdk.TypeString,
-							Optional:     true,
-							ValidateFunc: validate.IsUUIDOrEmpty,
-						},
-						"certificate_permissions": schemaCertificatePermissions(),
-						"key_permissions":         schemaKeyPermissions(),
-						"secret_permissions":      schemaSecretPermissions(),
-						"storage_permissions":     schemaStoragePermissions(),
-					},
-				},
 			},
 
 			"enabled_for_deployment": {
@@ -200,27 +168,6 @@ func resourceKeyVault() *pluginsdk.Resource {
 				ValidateFunc: validation.IntBetween(7, 90),
 			},
 
-			"contact": {
-				Type:     pluginsdk.TypeSet,
-				Optional: true,
-				Elem: &pluginsdk.Resource{
-					Schema: map[string]*pluginsdk.Schema{
-						"email": {
-							Type:     pluginsdk.TypeString,
-							Required: true,
-						},
-						"name": {
-							Type:     pluginsdk.TypeString,
-							Optional: true,
-						},
-						"phone": {
-							Type:     pluginsdk.TypeString,
-							Optional: true,
-						},
-					},
-				},
-			},
-
 			"tags": commonschema.Tags(),
 
 			// Computed
@@ -235,7 +182,6 @@ func resourceKeyVault() *pluginsdk.Resource {
 func resourceKeyVaultCreate(d *pluginsdk.ResourceData, meta interface{}) error {
 	subscriptionId := meta.(*clients.Client).Account.SubscriptionId
 	client := meta.(*clients.Client).KeyVault.VaultsClient
-	dataPlaneClient := meta.(*clients.Client).KeyVault.ManagementClient
 	ctx, cancel := timeouts.ForCreate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
@@ -288,9 +234,6 @@ func resourceKeyVaultCreate(d *pluginsdk.ResourceData, meta interface{}) error {
 	enableRbacAuthorization := d.Get("enable_rbac_authorization").(bool)
 	t := d.Get("tags").(map[string]interface{})
 
-	policies := d.Get("access_policy").([]interface{})
-	accessPolicies := expandAccessPolicies(policies)
-
 	networkAclsRaw := d.Get("network_acls").([]interface{})
 	networkAcls, subnetIds := expandKeyVaultNetworkAcls(networkAclsRaw)
 
@@ -304,7 +247,6 @@ func resourceKeyVaultCreate(d *pluginsdk.ResourceData, meta interface{}) error {
 		Properties: vaults.VaultProperties{
 			TenantId:                     tenantUUID,
 			Sku:                          sku,
-			AccessPolicies:               accessPolicies,
 			EnabledForDeployment:         &enabledForDeployment,
 			EnabledForDiskEncryption:     &enabledForDiskEncryption,
 			EnabledForTemplateDeployment: &enabledForTemplateDeployment,
@@ -391,21 +333,11 @@ func resourceKeyVaultCreate(d *pluginsdk.ResourceData, meta interface{}) error {
 		return fmt.Errorf("waiting for %s to become available: %s", id, err)
 	}
 
-	if v, ok := d.GetOk("contact"); ok {
-		contacts := dataplane.Contacts{
-			ContactList: expandKeyVaultCertificateContactList(v.(*pluginsdk.Set).List()),
-		}
-		if _, err := dataPlaneClient.SetCertificateContacts(ctx, vaultUri, contacts); err != nil {
-			return fmt.Errorf("failed to set Contacts for %s: %+v", id, err)
-		}
-	}
-
 	return resourceKeyVaultRead(d, meta)
 }
 
 func resourceKeyVaultUpdate(d *pluginsdk.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).KeyVault.VaultsClient
-	managementClient := meta.(*clients.Client).KeyVault.ManagementClient
 	ctx, cancel := timeouts.ForUpdate(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
@@ -431,16 +363,6 @@ func resourceKeyVaultUpdate(d *pluginsdk.ResourceData, meta interface{}) error {
 	}
 
 	update := vaults.VaultPatchParameters{}
-
-	if d.HasChange("access_policy") {
-		if update.Properties == nil {
-			update.Properties = &vaults.VaultPatchProperties{}
-		}
-
-		policiesRaw := d.Get("access_policy").([]interface{})
-		accessPolicies := expandAccessPolicies(policiesRaw)
-		update.Properties.AccessPolicies = accessPolicies
-	}
 
 	if d.HasChange("enabled_for_deployment") {
 		if update.Properties == nil {
@@ -591,30 +513,6 @@ func resourceKeyVaultUpdate(d *pluginsdk.ResourceData, meta interface{}) error {
 		return fmt.Errorf("updating %s: %+v", *id, err)
 	}
 
-	if d.HasChange("contact") {
-		contacts := dataplane.Contacts{
-			ContactList: expandKeyVaultCertificateContactList(d.Get("contact").(*pluginsdk.Set).List()),
-		}
-		vaultUri := ""
-		if existing.Model != nil && existing.Model.Properties.VaultUri != nil {
-			vaultUri = *existing.Model.Properties.VaultUri
-		}
-		if vaultUri == "" {
-			return fmt.Errorf("failed to get vault base url for %s: %s", *id, err)
-		}
-
-		var err error
-		if len(*contacts.ContactList) == 0 {
-			_, err = managementClient.DeleteCertificateContacts(ctx, vaultUri)
-		} else {
-			_, err = managementClient.SetCertificateContacts(ctx, vaultUri, contacts)
-		}
-
-		if err != nil {
-			return fmt.Errorf("setting Contacts for %s: %+v", *id, err)
-		}
-	}
-
 	d.Partial(false)
 
 	return resourceKeyVaultRead(d, meta)
@@ -622,7 +520,6 @@ func resourceKeyVaultUpdate(d *pluginsdk.ResourceData, meta interface{}) error {
 
 func resourceKeyVaultRead(d *pluginsdk.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).KeyVault.VaultsClient
-	dataplaneClient := meta.(*clients.Client).KeyVault.ManagementClient
 	ctx, cancel := timeouts.ForRead(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 
@@ -647,13 +544,6 @@ func resourceKeyVaultRead(d *pluginsdk.ResourceData, meta interface{}) error {
 	}
 	if vaultUri != "" {
 		meta.(*clients.Client).KeyVault.AddToCache(*id, vaultUri)
-	}
-
-	contactsResp, err := dataplaneClient.GetCertificateContacts(ctx, vaultUri)
-	if err != nil {
-		if !utils.ResponseWasForbidden(contactsResp.Response) && !utils.ResponseWasNotFound(contactsResp.Response) {
-			return fmt.Errorf("retrieving `contact` for KeyVault: %+v", err)
-		}
 	}
 
 	d.Set("name", id.VaultName)
@@ -699,19 +589,9 @@ func resourceKeyVaultRead(d *pluginsdk.ResourceData, meta interface{}) error {
 			return fmt.Errorf("setting `network_acls`: %+v", err)
 		}
 
-		flattenedPolicies := flattenAccessPolicies(model.Properties.AccessPolicies)
-		if err := d.Set("access_policy", flattenedPolicies); err != nil {
-			return fmt.Errorf("setting `access_policy`: %+v", err)
-		}
-
-		if err := d.Set("contact", flattenKeyVaultCertificateContactList(contactsResp)); err != nil {
-			return fmt.Errorf("setting `contact` for KeyVault: %+v", err)
-		}
-
 		if err := tags.FlattenAndSet(d, model.Tags); err != nil {
 			return fmt.Errorf("setting `tags`: %+v", err)
 		}
-
 	}
 
 	return nil
@@ -872,24 +752,6 @@ func expandKeyVaultNetworkAcls(input []interface{}) (*vaults.NetworkRuleSet, []s
 	return &ruleSet, subnetIds
 }
 
-func expandKeyVaultCertificateContactList(input []interface{}) *[]dataplane.Contact {
-	results := make([]dataplane.Contact, 0)
-	if len(input) == 0 || input[0] == nil {
-		return &results
-	}
-
-	for _, item := range input {
-		v := item.(map[string]interface{})
-		results = append(results, dataplane.Contact{
-			Name:         utils.String(v["name"].(string)),
-			EmailAddress: utils.String(v["email"].(string)),
-			Phone:        utils.String(v["phone"].(string)),
-		})
-	}
-
-	return &results
-}
-
 func flattenKeyVaultNetworkAcls(input *vaults.NetworkRuleSet) []interface{} {
 	bypass := string(vaults.NetworkRuleBypassOptionsAzureServices)
 	defaultAction := string(vaults.NetworkRuleActionAllow)
@@ -928,38 +790,6 @@ func flattenKeyVaultNetworkAcls(input *vaults.NetworkRuleSet) []interface{} {
 			"virtual_network_subnet_ids": pluginsdk.NewSet(pluginsdk.HashString, virtualNetworkSubnetIds),
 		},
 	}
-}
-
-func flattenKeyVaultCertificateContactList(input dataplane.Contacts) []interface{} {
-	results := make([]interface{}, 0)
-	if input.ContactList == nil {
-		return results
-	}
-
-	for _, contact := range *input.ContactList {
-		emailAddress := ""
-		if contact.EmailAddress != nil {
-			emailAddress = *contact.EmailAddress
-		}
-
-		name := ""
-		if contact.Name != nil {
-			name = *contact.Name
-		}
-
-		phone := ""
-		if contact.Phone != nil {
-			phone = *contact.Phone
-		}
-
-		results = append(results, map[string]interface{}{
-			"email": emailAddress,
-			"name":  name,
-			"phone": phone,
-		})
-	}
-
-	return results
 }
 
 func optedOutOfRecoveringSoftDeletedKeyVaultErrorFmt(name, location string) string {
